@@ -55,6 +55,7 @@ def init_gemini():
         return True
     return False
 
+# GANTI FUNGSI INI SAJA (Line 58 - 86 kira-kira)
 def get_ai_analysis(robot_state, grid_stats, weather):
     if not st.session_state.get('gemini_active', False):
         return "⚠️ AI Offline: API Key Missing."
@@ -70,18 +71,13 @@ def get_ai_analysis(robot_state, grid_stats, weather):
     """
 
     try:
-        # Pilihan 1: Coba model terbaru (Cepat & Murah)
+        # Kita pakai model yang paling standar dan pasti ada
         model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text.strip()
-    except Exception:
-        try:
-            # Pilihan 2: Fallback ke model lama (Pasti ada)
-            model = genai.GenerativeModel('gemini-pro')
-            response = model.generate_content(prompt)
-            return response.text.strip()
-        except Exception as e:
-            return "⚠️ AI System Rebooting..."
+    except Exception as e:
+        # Tampilkan error asli agar kita bisa diagnosa
+        return f"⚠️ Error: {str(e)}"
 
 # ==========================================
 # 3. LOGIKA AI (CORE SYSTEM)
@@ -413,3 +409,4 @@ if st.session_state.run or st.session_state.weather_trigger:
                 st.session_state.last_ai_update = time.time()
         
         st.rerun()
+
