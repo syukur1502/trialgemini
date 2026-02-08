@@ -3,3 +3,6 @@ numpy
 matplotlib>=3.8.0
 google-generativeai>=0.8.3
 
+
+
+
