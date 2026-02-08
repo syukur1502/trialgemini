@@ -41,7 +41,7 @@ COLOR_CHARGER = '#22c55e'
 COLOR_PATH = '#ef4444'      
 
 # ==========================================
-# 2. GEMINI AI INTEGRATION (FIXED)
+# 2. GEMINI AI INTEGRATION (SAFE MODE)
 # ==========================================
 def init_gemini():
     api_key = None
@@ -59,29 +59,29 @@ def get_ai_analysis(robot_state, grid_stats, weather):
     if not st.session_state.get('gemini_active', False):
         return "⚠️ AI Offline: API Key Missing."
 
-    try:
-        # Fallback logic: Coba model flash, kalau gagal coba pro
-        try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
-        except:
-            model = genai.GenerativeModel('gemini-pro')
+    prompt = f"""
+    Act as a Solar Farm Supervisor.
+    Status: {robot_state['status']}
+    Battery: {robot_state['battery']}%
+    Efficiency: {grid_stats['efficiency']}%
+    Environment: {weather if weather else "Clear"}
+    
+    Command: Give 1 short strategic order (Max 10 words).
+    """
 
-        prompt = f"""
-        Role: Solar Farm Autonomous Supervisor.
-        Context:
-        - Weather: {weather if weather else "Clear"}
-        - Battery: {robot_state['battery']}%
-        - Status: {robot_state['status']}
-        - Efficiency: {grid_stats['efficiency']}%
-        - Obstacles: {grid_stats['obstacles']}
-        
-        Task: Give a 1-sentence strategic command. 
-        Style: Sci-Fi Protocol.
-        """
+    try:
+        # Pilihan 1: Coba model terbaru (Cepat & Murah)
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text.strip()
-    except Exception as e:
-        return f"⚠️ AI Error: {str(e)}"
+    except Exception:
+        try:
+            # Pilihan 2: Fallback ke model lama (Pasti ada)
+            model = genai.GenerativeModel('gemini-pro')
+            response = model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            return "⚠️ AI System Rebooting..."
 
 # ==========================================
 # 3. LOGIKA AI (CORE SYSTEM)
@@ -165,7 +165,7 @@ class SmartRobot:
         self.total_cleaned = 0
         self.current_path = [] 
         self.status_msg = "System Online."
-        self.ai_recommendation = "Waiting for telemetry..." 
+        self.ai_recommendation = "Initializing AI..." 
 
     def decide_and_move(self, grid):
         if self.battery <= 0 and self.pos != (0, 0):
@@ -228,33 +228,31 @@ class SmartRobot:
             self.status_msg = "⚠️ PATH BLOCKED"
 
 # ==========================================
-# 5. UI & VISUALIZATION (FIXED LEGEND)
+# 5. UI & VISUALIZATION (SAFE MODE)
 # ==========================================
 def draw_visual_legend():
-    """Menggambar legenda dengan argumen KEYWORD explicit agar anti-error"""
+    """Menggambar legenda dengan metode Polygon Manual (Anti-Gagal)"""
     fig_leg, ax_leg = plt.subplots(figsize=(4, 2), facecolor=COLOR_BG)
     ax_leg.set_facecolor(COLOR_BG)
     ax_leg.axis('off')
     
-    # Item 1: Robot
+    # 1. Robot (Lingkaran)
     ax_leg.add_patch(patches.Circle((0.1, 0.8), radius=0.05, color=COLOR_ROBOT))
     ax_leg.text(0.2, 0.78, "Robot (Agent)", color='white', fontsize=10)
     
-    # Item 2: Obstacle (Perbaikan di sini: pakai keyword arguments lengkap)
-    ax_leg.add_patch(patches.RegularPolygon(
-        xy=(0.1, 0.55), 
-        numVertices=3, 
-        radius=0.06, 
-        orientation=0, 
-        color=COLOR_OBSTACLE
-    ))
+    # 2. Obstacle (Segitiga Manual)
+    # Kita gambar manual point-by-point agar tidak error versioning
+    tri_x, tri_y = 0.1, 0.55
+    r = 0.06
+    triangle_points = [[tri_x, tri_y+r], [tri_x-r, tri_y-r], [tri_x+r, tri_y-r]]
+    ax_leg.add_patch(patches.Polygon(triangle_points, color=COLOR_OBSTACLE))
     ax_leg.text(0.2, 0.53, "Dynamic Obstacle", color='white', fontsize=10)
     
-    # Item 3: Dirt
+    # 3. Dirt (Lingkaran Kecil)
     ax_leg.add_patch(patches.Circle((0.1, 0.3), radius=0.04, color=COLOR_DIRT))
     ax_leg.text(0.2, 0.28, "Dust/Debris", color='white', fontsize=10)
     
-    # Item 4: Charger
+    # 4. Charger (Kotak)
     ax_leg.add_patch(patches.Rectangle((0.05, 0.05), width=0.1, height=0.1, color=COLOR_CHARGER, fill=False, linewidth=2))
     ax_leg.text(0.2, 0.08, "Charging Dock", color='white', fontsize=10)
     
@@ -373,15 +371,9 @@ with col_vis:
                 circle = patches.Circle((c, r), size, color=COLOR_DIRT, alpha=0.9)
                 ax.add_patch(circle)
             elif cell == OBSTACLE:
-                # FIXED: Argument explicit disini juga
-                triangle = patches.RegularPolygon(
-                    xy=(c, r), 
-                    numVertices=3, 
-                    radius=0.35, 
-                    orientation=3.14, 
-                    color=COLOR_OBSTACLE
-                )
-                ax.add_patch(triangle)
+                # FIXED: Pakai Polygon Manual disini juga biar konsisten
+                tri_pts = [[c, r+0.35], [c-0.35, r-0.35], [c+0.35, r-0.35]]
+                ax.add_patch(patches.Polygon(tri_pts, color=COLOR_OBSTACLE))
 
     rr, rc = bot.pos
     glow = patches.Circle((rc, rr), 0.45, color=COLOR_ROBOT_GLOW, alpha=0.3)
