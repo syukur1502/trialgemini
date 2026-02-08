@@ -29,22 +29,21 @@ DIRT = 2
 CHARGER = 3
 OBSTACLE = 5    
 
-# PALET WARNA NEON (Sci-Fi Theme)
-COLOR_BG = '#0f172a'        # Background Gelap
-COLOR_GRID = '#1e293b'      # Garis Grid Halus
-COLOR_ROBOT = '#06b6d4'     # Cyan (Robot)
+# PALET WARNA NEON
+COLOR_BG = '#0f172a'        
+COLOR_GRID = '#1e293b'      
+COLOR_ROBOT = '#06b6d4'     
 COLOR_ROBOT_GLOW = '#22d3ee' 
-COLOR_OBSTACLE = '#d946ef'  # Ungu Neon (Halangan)
-COLOR_DIRT = '#facc15'      # Kuning Emas (Debu)
-COLOR_WALL = '#475569'      # Abu-abu (Panel Rusak)
-COLOR_CHARGER = '#22c55e'   # Hijau (Charger)
-COLOR_PATH = '#ef4444'      # Merah (Laser Path)
+COLOR_OBSTACLE = '#d946ef'  
+COLOR_DIRT = '#facc15'      
+COLOR_WALL = '#475569'      
+COLOR_CHARGER = '#22c55e'   
+COLOR_PATH = '#ef4444'      
 
 # ==========================================
-# 2. GEMINI AI INTEGRATION
+# 2. GEMINI AI INTEGRATION (FIXED)
 # ==========================================
 def init_gemini():
-    """Inisialisasi Gemini API dari Streamlit Secrets"""
     api_key = None
     if "GEMINI_API_KEY" in st.secrets:
         api_key = st.secrets["GEMINI_API_KEY"]
@@ -57,23 +56,27 @@ def init_gemini():
     return False
 
 def get_ai_analysis(robot_state, grid_stats, weather):
-    """Mengirim data telemetri ke Gemini"""
     if not st.session_state.get('gemini_active', False):
-        return "⚠️ AI Offline: API Key not found."
+        return "⚠️ AI Offline: API Key Missing."
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Fallback logic: Coba model flash, kalau gagal coba pro
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+        except:
+            model = genai.GenerativeModel('gemini-pro')
+
         prompt = f"""
-        Act as a Solar Farm AI Supervisor. Analyze this telemetry:
+        Role: Solar Farm Autonomous Supervisor.
+        Context:
         - Weather: {weather if weather else "Clear"}
         - Battery: {robot_state['battery']}%
         - Status: {robot_state['status']}
-        - Grid Efficiency: {grid_stats['efficiency']}%
-        - Active Obstacles: {grid_stats['obstacles']}
+        - Efficiency: {grid_stats['efficiency']}%
+        - Obstacles: {grid_stats['obstacles']}
         
-        Give a 1-sentence strategic command to the robot. 
-        Style: Military/Sci-Fi Protocol.
-        Example: "Critical dust levels detected; prioritize cleaning Sector 4 immediately."
+        Task: Give a 1-sentence strategic command. 
+        Style: Sci-Fi Protocol.
         """
         response = model.generate_content(prompt)
         return response.text.strip()
@@ -167,7 +170,7 @@ class SmartRobot:
     def decide_and_move(self, grid):
         if self.battery <= 0 and self.pos != (0, 0):
             self.state = "DEAD"
-            self.status_msg = "💀 CRITICAL FAILURE: Battery Dead"
+            self.status_msg = "💀 BATTERY DEAD"
             self.battery = 0
             return
 
@@ -189,15 +192,15 @@ class SmartRobot:
         if self.battery < return_threshold and self.pos != (0, 0):
             self.state = "RETURNING"
             target = (0, 0)
-            self.status_msg = "⚠️ LOW BATTERY - Returning to Base"
+            self.status_msg = "⚠️ RETURNING TO BASE"
         else:
             target = find_nearest_dirt(grid, self.pos)
             if target:
                 self.state = "CLEANING"
-                self.status_msg = f"Targeting Debris at {target}"
+                self.status_msg = f"TARGET: {target}"
             else:
                 self.state = "DONE"
-                self.status_msg = "Area Clean. Standing By."
+                self.status_msg = "STANDING BY"
                 target = (0, 0)
 
         if self.pos == target: return 
@@ -208,7 +211,7 @@ class SmartRobot:
         if path:
             next_step = path[0]
             if grid[next_step[0], next_step[1]] == OBSTACLE:
-                self.status_msg = "⛔ OBSTACLE DETECTED - Waiting"
+                self.status_msg = "⛔ OBSTACLE - WAITING"
                 return 
 
             self.pos = next_step
@@ -219,34 +222,40 @@ class SmartRobot:
                 grid[r, c] = EMPTY
                 self.total_cleaned += 1
                 self.battery = max(0, self.battery - CLEANING_COST)
-                self.status_msg = "✨ CLEANING PANEL"
+                self.status_msg = "✨ CLEANING"
         else:
             self.state = "BLOCKED"
-            self.status_msg = "⚠️ PATH BLOCKED - Recalculating"
+            self.status_msg = "⚠️ PATH BLOCKED"
 
 # ==========================================
-# 5. UI & VISUALIZATION (FIXED)
+# 5. UI & VISUALIZATION (FIXED LEGEND)
 # ==========================================
 def draw_visual_legend():
-    """Menggambar legenda visual menggunakan Matplotlib dengan ARGS eksplisit"""
+    """Menggambar legenda dengan argumen KEYWORD explicit agar anti-error"""
     fig_leg, ax_leg = plt.subplots(figsize=(4, 2), facecolor=COLOR_BG)
     ax_leg.set_facecolor(COLOR_BG)
     ax_leg.axis('off')
     
     # Item 1: Robot
-    ax_leg.add_patch(patches.Circle((0.1, 0.8), 0.05, color=COLOR_ROBOT))
+    ax_leg.add_patch(patches.Circle((0.1, 0.8), radius=0.05, color=COLOR_ROBOT))
     ax_leg.text(0.2, 0.78, "Robot (Agent)", color='white', fontsize=10)
     
-    # Item 2: Obstacle (FIXED: Menambahkan numVertices=3)
-    ax_leg.add_patch(patches.RegularPolygon((0.1, 0.55), numVertices=3, radius=0.06, color=COLOR_OBSTACLE))
+    # Item 2: Obstacle (Perbaikan di sini: pakai keyword arguments lengkap)
+    ax_leg.add_patch(patches.RegularPolygon(
+        xy=(0.1, 0.55), 
+        numVertices=3, 
+        radius=0.06, 
+        orientation=0, 
+        color=COLOR_OBSTACLE
+    ))
     ax_leg.text(0.2, 0.53, "Dynamic Obstacle", color='white', fontsize=10)
     
     # Item 3: Dirt
-    ax_leg.add_patch(patches.Circle((0.1, 0.3), 0.04, color=COLOR_DIRT))
+    ax_leg.add_patch(patches.Circle((0.1, 0.3), radius=0.04, color=COLOR_DIRT))
     ax_leg.text(0.2, 0.28, "Dust/Debris", color='white', fontsize=10)
     
     # Item 4: Charger
-    ax_leg.add_patch(patches.Rectangle((0.05, 0.05), 0.1, 0.1, color=COLOR_CHARGER, fill=False, linewidth=2))
+    ax_leg.add_patch(patches.Rectangle((0.05, 0.05), width=0.1, height=0.1, color=COLOR_CHARGER, fill=False, linewidth=2))
     ax_leg.text(0.2, 0.08, "Charging Dock", color='white', fontsize=10)
     
     return fig_leg
@@ -285,7 +294,7 @@ if 'sim_map' not in st.session_state:
 
 col_ctrl, col_vis, col_stats = st.columns([1, 2, 1])
 
-# --- KOLOM KIRI: KONTROL ---
+# --- CONTROL ---
 with col_ctrl:
     st.subheader("🕹️ Command")
     if not st.session_state.run:
@@ -307,15 +316,14 @@ with col_ctrl:
     st.subheader("ℹ️ Legend")
     st.pyplot(draw_visual_legend()) 
 
-# --- KOLOM KANAN: TELEMETRI & AI ---
+# --- AI & STATS ---
 with col_stats:
     st.subheader("🧠 Gemini AI Copilot")
-    
     ai_container = st.container(border=True)
     ai_container.markdown(f"**🤖 Supervisor:**\n\n*{st.session_state.bot.ai_recommendation}*")
     
     if not st.session_state.gemini_active:
-        st.warning("⚠️ API Key Missing. AI disabled.")
+        st.warning("⚠️ AI Offline (API Key Missing)")
     
     st.divider()
     st.subheader("📊 Telemetry")
@@ -339,7 +347,7 @@ with col_stats:
     st.progress(int(bot.battery))
     st.code(f"STATUS: {bot.status_msg}")
 
-# --- KOLOM TENGAH: VISUALISASI UTAMA ---
+# --- MAIN VISUALIZATION ---
 with col_vis:
     fig, ax = plt.subplots(figsize=(6,6), facecolor=COLOR_BG)
     ax.set_facecolor(COLOR_BG)
@@ -365,8 +373,14 @@ with col_vis:
                 circle = patches.Circle((c, r), size, color=COLOR_DIRT, alpha=0.9)
                 ax.add_patch(circle)
             elif cell == OBSTACLE:
-                # FIXED: Menggunakan args eksplisit juga disini untuk keamanan
-                triangle = patches.RegularPolygon((c, r), numVertices=3, radius=0.35, orientation=3.14, color=COLOR_OBSTACLE)
+                # FIXED: Argument explicit disini juga
+                triangle = patches.RegularPolygon(
+                    xy=(c, r), 
+                    numVertices=3, 
+                    radius=0.35, 
+                    orientation=3.14, 
+                    color=COLOR_OBSTACLE
+                )
                 ax.add_patch(triangle)
 
     rr, rc = bot.pos
@@ -386,7 +400,7 @@ with col_vis:
     ax.set_ylim(GRID_SIZE-0.5, -0.5)
     st.pyplot(fig)
 
-# --- GAME LOOP ---
+# --- LOOP ---
 if st.session_state.run or st.session_state.weather_trigger:
     time.sleep(0.2)
     w_event = st.session_state.weather_trigger
