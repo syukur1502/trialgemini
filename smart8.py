@@ -9,7 +9,7 @@ import google.generativeai as genai
 import os
 
 # ==========================================
-# 1. KONFIGURASI & SETUP
+# 1. KONFIGURASI
 # ==========================================
 GRID_SIZE = 10
 BATTERY_MAX = 100
@@ -22,7 +22,7 @@ SAFETY_MARGIN = 20.0
 POWER_PRICE_PER_KWH = 0.15 
 PANEL_OUTPUT_PER_TICK = 0.5 
 
-# KODE ELEMEN MAP
+# KODE ELEMEN
 EMPTY = 0
 WALL = 1
 DIRT = 2
@@ -46,11 +46,8 @@ COLOR_PATH = '#ef4444'      # Merah (Laser Path)
 def init_gemini():
     """Inisialisasi Gemini API dari Streamlit Secrets"""
     api_key = None
-    
-    # Cek di Secrets (untuk Cloud/Vultr)
     if "GEMINI_API_KEY" in st.secrets:
         api_key = st.secrets["GEMINI_API_KEY"]
-    # Cek Environment Variable (opsional)
     elif "GEMINI_API_KEY" in os.environ:
         api_key = os.environ["GEMINI_API_KEY"]
 
@@ -60,13 +57,12 @@ def init_gemini():
     return False
 
 def get_ai_analysis(robot_state, grid_stats, weather):
-    """Mengirim data telemetri ke Gemini untuk dianalisa"""
-    if not st.session_state.gemini_active:
+    """Mengirim data telemetri ke Gemini"""
+    if not st.session_state.get('gemini_active', False):
         return "⚠️ AI Offline: API Key not found."
 
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
-        
         prompt = f"""
         Act as a Solar Farm AI Supervisor. Analyze this telemetry:
         - Weather: {weather if weather else "Clear"}
@@ -79,14 +75,13 @@ def get_ai_analysis(robot_state, grid_stats, weather):
         Style: Military/Sci-Fi Protocol.
         Example: "Critical dust levels detected; prioritize cleaning Sector 4 immediately."
         """
-        
         response = model.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
         return f"⚠️ AI Error: {str(e)}"
 
 # ==========================================
-# 3. LOGIKA AI (PATHFINDING & SIMULASI)
+# 3. LOGIKA AI (CORE SYSTEM)
 # ==========================================
 def bfs_shortest_path(grid, start, goal):
     rows, cols = grid.shape
@@ -125,7 +120,6 @@ def update_environment(grid, weather_event=None):
     rows, cols = grid.shape
     new_grid = grid.copy()
     
-    # Weather Logic
     if weather_event == "SANDSTORM":
         for _ in range(random.randint(5, 8)):
             r, c = random.randint(0, rows-1), random.randint(0, cols-1)
@@ -136,7 +130,6 @@ def update_environment(grid, weather_event=None):
                 if new_grid[r, c] == DIRT and random.random() < 0.4:
                     new_grid[r, c] = EMPTY
 
-    # Move Obstacles (Kucing)
     obstacles = []
     for r in range(rows):
         for c in range(cols):
@@ -169,17 +162,15 @@ class SmartRobot:
         self.total_cleaned = 0
         self.current_path = [] 
         self.status_msg = "System Online."
-        self.ai_recommendation = "Waiting for telemetry..." # Log Gemini
+        self.ai_recommendation = "Waiting for telemetry..." 
 
     def decide_and_move(self, grid):
-        # A. Cek Mati
         if self.battery <= 0 and self.pos != (0, 0):
             self.state = "DEAD"
             self.status_msg = "💀 CRITICAL FAILURE: Battery Dead"
             self.battery = 0
             return
 
-        # B. Charging Logic
         if self.pos == (0, 0):
             if self.battery < BATTERY_MAX:
                 self.state = "CHARGING"
@@ -191,7 +182,6 @@ class SmartRobot:
                 self.state = "IDLE"
                 self.battery = BATTERY_MAX
 
-        # C. Tentukan Target
         dist_to_home = abs(self.pos[0] - 0) + abs(self.pos[1] - 0)
         return_threshold = (dist_to_home * DRAIN_RATE) + SAFETY_MARGIN
         
@@ -210,7 +200,6 @@ class SmartRobot:
                 self.status_msg = "Area Clean. Standing By."
                 target = (0, 0)
 
-        # D. Eksekusi
         if self.pos == target: return 
 
         path = bfs_shortest_path(grid, self.pos, target)
@@ -236,10 +225,10 @@ class SmartRobot:
             self.status_msg = "⚠️ PATH BLOCKED - Recalculating"
 
 # ==========================================
-# 5. UI & VISUALIZATION
+# 5. UI & VISUALIZATION (FIXED)
 # ==========================================
 def draw_visual_legend():
-    """Menggambar legenda visual menggunakan Matplotlib"""
+    """Menggambar legenda visual menggunakan Matplotlib dengan ARGS eksplisit"""
     fig_leg, ax_leg = plt.subplots(figsize=(4, 2), facecolor=COLOR_BG)
     ax_leg.set_facecolor(COLOR_BG)
     ax_leg.axis('off')
@@ -248,8 +237,8 @@ def draw_visual_legend():
     ax_leg.add_patch(patches.Circle((0.1, 0.8), 0.05, color=COLOR_ROBOT))
     ax_leg.text(0.2, 0.78, "Robot (Agent)", color='white', fontsize=10)
     
-    # Item 2: Obstacle
-    ax_leg.add_patch(patches.RegularPolygon((0.1, 0.55), 3, 0.06, color=COLOR_OBSTACLE))
+    # Item 2: Obstacle (FIXED: Menambahkan numVertices=3)
+    ax_leg.add_patch(patches.RegularPolygon((0.1, 0.55), numVertices=3, radius=0.06, color=COLOR_OBSTACLE))
     ax_leg.text(0.2, 0.53, "Dynamic Obstacle", color='white', fontsize=10)
     
     # Item 3: Dirt
@@ -265,7 +254,6 @@ def draw_visual_legend():
 # --- SETUP STREAMLIT ---
 st.set_page_config(page_title="Solar Sentinel AI", layout="wide", page_icon="☀️")
 
-# Custom CSS
 st.markdown(f"""
 <style>
     .stApp {{ background-color: {COLOR_BG}; }}
@@ -281,7 +269,6 @@ st.markdown("**Deployed on Vultr** | **Powered by Google Gemini**")
 # Init State
 if 'sim_map' not in st.session_state:
     st.session_state.sim_map = np.zeros((GRID_SIZE, GRID_SIZE), dtype=int)
-    # Generate Map Awal
     for _ in range(18): st.session_state.sim_map[random.randint(0,9), random.randint(0,9)] = DIRT
     for _ in range(6): st.session_state.sim_map[random.randint(0,9), random.randint(0,9)] = WALL
     for _ in range(3):
@@ -318,13 +305,12 @@ with col_ctrl:
     
     st.divider()
     st.subheader("ℹ️ Legend")
-    st.pyplot(draw_visual_legend()) # TAMPILKAN LEGENDA
+    st.pyplot(draw_visual_legend()) 
 
 # --- KOLOM KANAN: TELEMETRI & AI ---
 with col_stats:
     st.subheader("🧠 Gemini AI Copilot")
     
-    # Kotak Chat AI
     ai_container = st.container(border=True)
     ai_container.markdown(f"**🤖 Supervisor:**\n\n*{st.session_state.bot.ai_recommendation}*")
     
@@ -358,13 +344,11 @@ with col_vis:
     fig, ax = plt.subplots(figsize=(6,6), facecolor=COLOR_BG)
     ax.set_facecolor(COLOR_BG)
     
-    # 1. Grid
     ax.set_xticks(np.arange(-.5, GRID_SIZE, 1))
     ax.set_yticks(np.arange(-.5, GRID_SIZE, 1))
     ax.grid(color=COLOR_GRID, linestyle='-', linewidth=1.5)
     ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
     
-    # 2. Draw Elements
     grid = st.session_state.sim_map
     for r in range(GRID_SIZE):
         for c in range(GRID_SIZE):
@@ -381,17 +365,16 @@ with col_vis:
                 circle = patches.Circle((c, r), size, color=COLOR_DIRT, alpha=0.9)
                 ax.add_patch(circle)
             elif cell == OBSTACLE:
+                # FIXED: Menggunakan args eksplisit juga disini untuk keamanan
                 triangle = patches.RegularPolygon((c, r), numVertices=3, radius=0.35, orientation=3.14, color=COLOR_OBSTACLE)
                 ax.add_patch(triangle)
 
-    # 3. Draw Robot
     rr, rc = bot.pos
     glow = patches.Circle((rc, rr), 0.45, color=COLOR_ROBOT_GLOW, alpha=0.3)
     ax.add_patch(glow)
     core = patches.Circle((rc, rr), 0.25, color=COLOR_ROBOT, zorder=10)
     ax.add_patch(core)
     
-    # 4. Draw Path
     if bot.current_path:
         path_y = [p[0] for p in bot.current_path]
         path_x = [p[1] for p in bot.current_path]
@@ -406,8 +389,6 @@ with col_vis:
 # --- GAME LOOP ---
 if st.session_state.run or st.session_state.weather_trigger:
     time.sleep(0.2)
-    
-    # Weather & Obstacle Update
     w_event = st.session_state.weather_trigger
     st.session_state.sim_map = update_environment(st.session_state.sim_map, weather_event=w_event)
     st.session_state.weather_trigger = None
@@ -415,16 +396,13 @@ if st.session_state.run or st.session_state.weather_trigger:
     if st.session_state.run:
         st.session_state.bot.decide_and_move(st.session_state.sim_map)
         
-        # Panggil Gemini Setiap 10 Tick agar tidak spam API
         if st.session_state.gemini_active:
-            if time.time() - st.session_state.last_ai_update > 5: # Tiap 5 detik
+            if time.time() - st.session_state.last_ai_update > 5: 
                 stats = {
                     "efficiency": efficiency, 
                     "obstacles": np.count_nonzero(st.session_state.sim_map == OBSTACLE)
                 }
                 rob_state = {"battery": int(bot.battery), "status": bot.status_msg}
-                
-                # Update Rekomendasi AI (Async-like)
                 st.session_state.bot.ai_recommendation = get_ai_analysis(rob_state, stats, w_event)
                 st.session_state.last_ai_update = time.time()
         
